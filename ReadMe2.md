@@ -14,9 +14,7 @@
 4. [Transaction Flow Diagrams](#transaction-flow-diagrams)
 5. [Concurrency Control](#concurrency-control)
 6. [Database Schema](#database-schema)
-7. [Security Architecture](#security-architecture)
-8. [AI Voice Assistant](#ai-voice-assistant)
-9. [API Documentation](#api-documentation)
+
 
 ---
 
