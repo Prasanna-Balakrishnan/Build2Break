@@ -3,7 +3,7 @@ import requests
 import time
 import sys
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api/v1"
 
 def create_user(username, email):
     res = requests.post(f"{BASE_URL}/users/", json={"username": username, "email": email})
