@@ -11,6 +11,10 @@ def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
     - Prevents race conditions by ensuring only one transaction can modify the balance at a time.
     """
     
+    # Validate amount > 0
+    if transaction.amount <= 0:
+        raise HTTPException(status_code=400, detail="Transfer amount must be greater than 0")
+    
     # 1. READ SENDER WITH LOCK
     # with_for_update() locks the selected rows until the transaction commits or rolls back
     sender = db.query(Wallet).filter(Wallet.id == transaction.from_wallet_id).with_for_update().first()
@@ -60,7 +64,11 @@ def create_batch_transfer(db: Session, batch: TransactionCreate):
     if sender.status != WalletStatus.ACTIVE:
          raise HTTPException(status_code=400, detail="Sender wallet inactive")
 
-    # 2. CALCULATE TOTAL
+    # 2. VALIDATE AMOUNTS AND CALCULATE TOTAL
+    for idx, t in enumerate(batch.transfers, 1):
+        if t.amount <= 0:
+            raise HTTPException(status_code=400, detail=f"Recipient {idx}: Amount must be greater than 0")
+    
     total_needed = sum(t.amount for t in batch.transfers)
     
     # 3. ATOMIC CHECK

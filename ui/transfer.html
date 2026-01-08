@@ -40,28 +40,36 @@
                 <form id="transferForm" class="stack-form">
                     <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
                         <input type="checkbox" id="raceToggle" style="width:auto;">
-                        <label for="raceToggle" style="margin:0; cursor:pointer;">💸 Payroll Batch Mode (Atomic
-                            Transfer)</label>
+                        <label for="raceToggle" style="margin:0; cursor:pointer;">💸 Payroll Batch Mode (Multiple
+                            Recipients)</label>
                     </div>
 
-                    <div class="row">
-                        <div class="form-group">
-                            <label>From Wallet ID</label>
-                            <input type="number" name="from_wallet_id" placeholder="Sender" required>
-                        </div>
-                        <div class="form-group">
-                            <label>To Wallet ID 1</label>
-                            <input type="number" name="to_wallet_id" placeholder="Receiver 1" required>
-                        </div>
-                        <div class="form-group hidden" id="receiver2Group">
-                            <label>To Wallet ID 2</label>
-                            <input type="number" name="to_wallet_id_2" placeholder="Receiver 2">
-                        </div>
-                    </div>
                     <div class="form-group">
-                        <label>Amount (for each transfer)</label>
-                        <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+                        <label>From Wallet ID</label>
+                        <input type="number" name="from_wallet_id" placeholder="Sender" required>
                     </div>
+
+                    <!-- Single Transfer Mode -->
+                    <div id="singleTransferMode">
+                        <div class="form-group">
+                            <label>To Wallet ID</label>
+                            <input type="number" name="to_wallet_id" placeholder="Receiver" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount ($)</label>
+                            <input type="number" step="0.01" name="amount" placeholder="0.00" min="0.01" required>
+                        </div>
+                    </div>
+
+                    <!-- Batch Transfer Mode -->
+                    <div id="batchTransferMode" class="hidden">
+                        <div class="form-group">
+                            <label>Number of Recipients</label>
+                            <input type="number" id="numRecipients" min="2" max="10" placeholder="e.g., 2" value="2">
+                        </div>
+                        <div id="recipientsContainer"></div>
+                    </div>
+
                     <button type="submit" class="btn-accent" id="transferBtn">Transfer</button>
                 </form>
             </div>

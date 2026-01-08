@@ -245,7 +245,15 @@ window.loadTransactions = async () => {
 
     tableBody.innerHTML = '';
     txns.forEach(t => {
-        const date = new Date(t.timestamp).toLocaleString();
+        const date = new Date(t.timestamp).toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
         const row = document.createElement('tr');
         row.style.borderBottom = '1px solid var(--border-color)';
         row.innerHTML = `
@@ -337,8 +345,15 @@ if (depositForm) {
     depositForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
+        const amount = parseFloat(data.amount);
 
-        const res = await api(`/wallets/${data.wallet_id}/deposit`, 'POST', { amount: parseFloat(data.amount) });
+        // Validation for amount > 0
+        if (amount <= 0) {
+            showToast('Deposit amount must be greater than 0!', 'error');
+            return;
+        }
+
+        const res = await api(`/wallets/${data.wallet_id}/deposit`, 'POST', { amount: amount });
         if (res.success) {
             showToast(`Deposited $${data.amount} to Wallet #${data.wallet_id}`);
             e.target.reset();
@@ -357,18 +372,62 @@ const transferForm = document.getElementById('transferForm');
 if (transferForm) {
     // Toggle Logic
     const raceToggle = document.getElementById('raceToggle');
-    const receiver2Group = document.getElementById('receiver2Group');
+    const singleTransferMode = document.getElementById('singleTransferMode');
+    const batchTransferMode = document.getElementById('batchTransferMode');
+    const numRecipientsInput = document.getElementById('numRecipients');
+    const recipientsContainer = document.getElementById('recipientsContainer');
+
+    // Function to generate recipient fields
+    const generateRecipientFields = (count) => {
+        recipientsContainer.innerHTML = '';
+        for (let i = 1; i <= count; i++) {
+            const div = document.createElement('div');
+            div.className = 'form-group';
+            div.style.border = '1px solid var(--border-color)';
+            div.style.padding = '15px';
+            div.style.borderRadius = '8px';
+            div.style.marginBottom = '10px';
+            div.innerHTML = `
+                <h4 style="margin-top:0; color:var(--primary-color);">Recipient ${i}</h4>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div>
+                        <label>Wallet ID</label>
+                        <input type="number" name="recipient_${i}_wallet" placeholder="Wallet ID" required>
+                    </div>
+                    <div>
+                        <label>Amount ($)</label>
+                        <input type="number" step="0.01" name="recipient_${i}_amount" placeholder="0.00" min="0.01" required>
+                    </div>
+                </div>
+            `;
+            recipientsContainer.appendChild(div);
+        }
+    };
 
     if (raceToggle) {
         raceToggle.addEventListener('change', (e) => {
             if (e.target.checked) {
-                receiver2Group.classList.remove('hidden');
-                document.querySelector('input[name="to_wallet_id_2"]').required = true;
+                singleTransferMode.classList.add('hidden');
+                batchTransferMode.classList.remove('hidden');
+                // Disable single mode inputs
+                singleTransferMode.querySelectorAll('input').forEach(input => input.required = false);
+                // Generate initial recipient fields
+                generateRecipientFields(parseInt(numRecipientsInput.value) || 2);
                 document.getElementById('transferBtn').innerText = "💸 Run Payroll Batch";
             } else {
-                receiver2Group.classList.add('hidden');
-                document.querySelector('input[name="to_wallet_id_2"]').required = false;
+                singleTransferMode.classList.remove('hidden');
+                batchTransferMode.classList.add('hidden');
+                // Enable single mode inputs
+                singleTransferMode.querySelectorAll('input').forEach(input => input.required = true);
                 document.getElementById('transferBtn').innerText = "Transfer";
+            }
+        });
+
+        // Update recipient fields when number changes
+        numRecipientsInput.addEventListener('input', (e) => {
+            const count = parseInt(e.target.value);
+            if (count >= 2 && count <= 10) {
+                generateRecipientFields(count);
             }
         });
     }
@@ -376,48 +435,57 @@ if (transferForm) {
     transferForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
-        const amount = parseFloat(data.amount);
         const fromId = parseInt(data.from_wallet_id);
-        const toId1 = parseInt(data.to_wallet_id);
-
-        // Validation for negative amount
-        if (amount <= 0) {
-            showToast('Amount must be positive!', 'error');
-            return;
-        }
-
-        // Validation: Self Transfer
-        if (fromId === toId1) {
-            showToast('Cannot transfer to self!', 'error');
-            return;
-        }
 
         if (raceToggle && raceToggle.checked) {
-            // RACE CONDITION MODE
-            const toId2 = parseInt(data.to_wallet_id_2);
+            // BATCH MODE - Multiple Recipients
+            const numRecipients = parseInt(numRecipientsInput.value);
 
-            if (fromId === toId2) {
-                showToast('Cannot transfer to self (Receiver 2)!', 'error');
+            if (numRecipients < 2 || numRecipients > 10) {
+                showToast('Number of recipients must be between 2 and 10!', 'error');
                 return;
             }
-            if (toId1 === toId2) {
-                showToast('Receivers must be different for race test!', 'error');
-                return;
-            }
-            if (isNaN(toId2)) {
-                showToast('Receiver 2 ID is invalid', 'error');
-                return;
+
+            const transfers = [];
+            const seenWallets = new Set();
+
+            for (let i = 1; i <= numRecipients; i++) {
+                const walletId = parseInt(data[`recipient_${i}_wallet`]);
+                const amount = parseFloat(data[`recipient_${i}_amount`]);
+
+                // Validation: amount > 0
+                if (amount <= 0 || isNaN(amount)) {
+                    showToast(`Recipient ${i}: Amount must be greater than 0!`, 'error');
+                    return;
+                }
+
+                // Validation: valid wallet ID
+                if (isNaN(walletId)) {
+                    showToast(`Recipient ${i}: Invalid wallet ID!`, 'error');
+                    return;
+                }
+
+                // Validation: no self-transfer
+                if (walletId === fromId) {
+                    showToast(`Recipient ${i}: Cannot transfer to sender wallet!`, 'error');
+                    return;
+                }
+
+                // Validation: no duplicate recipients
+                if (seenWallets.has(walletId)) {
+                    showToast(`Recipient ${i}: Duplicate wallet ID detected!`, 'error');
+                    return;
+                }
+                seenWallets.add(walletId);
+
+                transfers.push({ to_wallet_id: walletId, amount: amount });
             }
 
             showToast('Processing Payroll Batch...', 'info');
 
-            // Construct Batch Payload
             const batchPayload = {
                 from_wallet_id: fromId,
-                transfers: [
-                    { to_wallet_id: toId1, amount: amount },
-                    { to_wallet_id: toId2, amount: amount }
-                ]
+                transfers: transfers
             };
 
             const res = await api('/transfer/batch', 'POST', batchPayload);
@@ -425,12 +493,32 @@ if (transferForm) {
             if (res.success) {
                 showToast(`Payroll Success! Processed ${res.data.length} transactions.`, 'success');
                 e.target.reset();
+                raceToggle.checked = false;
+                singleTransferMode.classList.remove('hidden');
+                batchTransferMode.classList.add('hidden');
+                singleTransferMode.querySelectorAll('input').forEach(input => input.required = true);
+                document.getElementById('transferBtn').innerText = "Transfer";
             } else {
-                showToast(`batch Failed: ${res.error.detail || 'Unknown error'}`, 'error');
+                showToast(`Batch Failed: ${res.error.detail || 'Unknown error'}`, 'error');
             }
 
         } else {
-            // NORMAL MODE
+            // SINGLE TRANSFER MODE
+            const amount = parseFloat(data.amount);
+            const toId1 = parseInt(data.to_wallet_id);
+
+            // Validation for amount > 0
+            if (amount <= 0 || isNaN(amount)) {
+                showToast('Amount must be greater than 0!', 'error');
+                return;
+            }
+
+            // Validation: Self Transfer
+            if (fromId === toId1) {
+                showToast('Cannot transfer to self!', 'error');
+                return;
+            }
+
             const res = await api('/transfer/', 'POST', {
                 from_wallet_id: fromId,
                 to_wallet_id: toId1,

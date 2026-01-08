@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
 </head>
 
 <body>
@@ -35,7 +38,10 @@
         <div class="card">
             <div class="card-header">
                 <h3>Transaction Log Book</h3>
-                <button class="btn-text" onclick="loadTransactions()">Refresh</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-text" onclick="loadTransactions()">Refresh</button>
+                    <button class="btn-accent" onclick="exportToPDF()">📄 Export PDF</button>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-container">
@@ -63,7 +69,58 @@
     <script>
         // Inline init for specific page logic if needed, or put in main script
         document.addEventListener('DOMContentLoaded', loadTransactions);
+
+        // PDF Export Function
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Add title
+            doc.setFontSize(18);
+            doc.text('Transaction Log Book', 14, 20);
+
+            // Add timestamp
+            doc.setFontSize(10);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+
+            // Get table data
+            const tableBody = document.getElementById('txnList');
+            const rows = tableBody.querySelectorAll('tr');
+
+            if (rows.length === 0 || rows[0].textContent.includes('Loading') || rows[0].textContent.includes('No transactions')) {
+                alert('No transactions to export!');
+                return;
+            }
+
+            const tableData = [];
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 5) {
+                    tableData.push([
+                        cells[0].textContent.trim(), // ID
+                        cells[1].textContent.trim(), // Date & Time
+                        cells[2].textContent.trim(), // From
+                        cells[3].textContent.trim(), // To
+                        cells[4].textContent.trim()  // Amount
+                    ]);
+                }
+            });
+
+            // Generate table
+            doc.autoTable({
+                head: [['ID', 'Date & Time', 'From Wallet', 'To Wallet', 'Amount']],
+                body: tableData,
+                startY: 35,
+                theme: 'grid',
+                headStyles: { fillColor: [99, 102, 241] },
+                styles: { fontSize: 9 }
+            });
+
+            // Save PDF
+            doc.save(`transaction-log-${new Date().toISOString().split('T')[0]}.pdf`);
+        }
     </script>
+
 </body>
 
 </html>

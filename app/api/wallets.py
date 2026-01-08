@@ -25,6 +25,8 @@ def read_wallet(wallet_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{wallet_id}/deposit", response_model=wallet_schema.Wallet)
 def deposit(wallet_id: int, deposit: wallet_schema.WalletDeposit, db: Session = Depends(get_db)):
+    if deposit.amount <= 0:
+        raise HTTPException(status_code=400, detail="Deposit amount must be greater than 0")
     updated_wallet = wallet_crud.deposit_wallet(db, wallet_id=wallet_id, amount=deposit.amount)
     if not updated_wallet:
          raise HTTPException(status_code=404, detail="Wallet not found")
